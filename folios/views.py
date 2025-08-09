@@ -1,10 +1,12 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from .models import Folio
 from .models import Usuario
+from django.core.paginator import Paginator
+from django.db.models import Q
 
 def login_view(request):
     if request.method == 'POST':
@@ -102,4 +104,86 @@ def registrar_usuario(request):
             return redirect('registrar_usuario')
 
     return render(request, 'folios/registrar_usuario.html')
+
+def _redir_por_perfil(user):
+    return {
+        'ADMIN': 'dashboard_admin',
+        'SUBADMIN': 'dashboard_subadmin',
+        'JEFE': 'dashboard_jefe',
+        'OPERATIVO': 'dashboard_operativo'
+    }.get(user.perfil, 'login')
+
+@login_required
+def usuarios_lista(request):
+    if request.user.perfil not in ['ADMIN', 'SUBADMIN']:
+        messages.error(request, 'No tienes permiso para acceder a esta página.')
+        return redirect(_redir_por_perfil(request.user))
+
+    q = request.GET.get('q', '').strip()
+    orden = request.GET.get('orden', 'numero_empleado')  # opcional
+    qs = Usuario.objects.all().order_by(orden)
+
+    if q:
+        qs = qs.filter(
+            Q(numero_empleado__icontains=q) |
+            Q(nombre__icontains=q) |
+            Q(apellido_paterno__icontains=q) |
+            Q(apellido_materno__icontains=q) |
+            Q(rfc__icontains=q) |
+            Q(email__icontains=q)
+        )
+
+    paginator = Paginator(qs, 10)  # 10 por página
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'folios/usuarios_lista.html', {
+        'page_obj': page_obj,
+        'q': q,
+        'orden': orden
+    })
+
+@login_required
+def usuario_actualizar(request, pk):
+    if request.user.perfil not in ['ADMIN', 'SUBADMIN']:
+        messages.error(request, 'No tienes permiso para esta acción.')
+        return redirect(_redir_por_perfil(request.user))
+
+    u = get_object_or_404(Usuario, pk=pk)
+
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre', '').strip()
+        ap_pat = request.POST.get('apellido_paterno', '').strip()
+        ap_mat = request.POST.get('apellido_materno', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        numero = request.POST.get('numero_empleado', '').strip()
+        email = request.POST.get('email', '').strip()
+        perfil = request.POST.get('perfil', '').strip()
+        password = request.POST.get('password', '').strip()
+
+        # Unicidad excluyendo el propio registro
+        if Usuario.objects.exclude(pk=u.pk).filter(rfc=rfc).exists():
+            messages.error(request, 'El RFC ya está registrado en otro usuario.')
+        elif Usuario.objects.exclude(pk=u.pk).filter(numero_empleado=numero).exists():
+            messages.error(request, 'El número de empleado ya está registrado en otro usuario.')
+        elif Usuario.objects.exclude(pk=u.pk).filter(email=email).exists():
+            messages.error(request, 'El correo ya está registrado en otro usuario.')
+        else:
+            u.nombre = nombre
+            u.apellido_paterno = ap_pat
+            u.apellido_materno = ap_mat
+            u.rfc = rfc
+            u.numero_empleado = numero
+            u.email = email
+            u.perfil = perfil
+            if password:
+                u.set_password(password)  # solo si se envía
+            u.save()
+            messages.success(request, 'Usuario actualizado correctamente.')
+
+        # Regresa a la lista preservando búsqueda/página si venían en el referer
+        return redirect('usuarios_lista')
+
+    # Si viniera GET, podrías retornar JSON, pero el flujo es por POST desde el modal
+    return redirect('usuarios_lista')
 

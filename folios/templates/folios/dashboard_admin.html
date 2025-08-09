@@ -14,9 +14,8 @@
         <div class="collapse navbar-collapse">
           <ul class="navbar-nav me-auto">
             {% if request.user.perfil == 'ADMIN' or request.user.perfil == 'SUBADMIN' %}
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'registrar_usuario' %}">Registrar Usuario</a>
-              </li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'registrar_usuario' %}">Registrar Usuario</a></li>
+              <li class="nav-item"><a class="nav-link{% if request.path == '/usuarios/' %} active{% endif %}" href="{% url 'usuarios_lista' %}">Usuarios</a></li>
             {% endif %}
           </ul>
         </div>

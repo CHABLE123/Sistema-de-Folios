@@ -10,15 +10,16 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-fluid">
         <a class="navbar-brand" href="#">Sistema de Folios</a>
+
         <div class="collapse navbar-collapse">
           <ul class="navbar-nav me-auto">
             {% if request.user.perfil == 'ADMIN' or request.user.perfil == 'SUBADMIN' %}
-              <li class="nav-item">
-                <a class="nav-link active" href="{% url 'registrar_usuario' %}">Registrar Usuario</a>
-              </li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'registrar_usuario' %}">Registrar Usuario</a></li>
+              <li class="nav-item"><a class="nav-link{% if request.path == '/usuarios/' %} active{% endif %}" href="{% url 'usuarios_lista' %}">Usuarios</a></li>
             {% endif %}
           </ul>
         </div>
+
         <div class="d-flex">
           <span class="navbar-text text-white me-3">{{ request.user.get_perfil_display }}</span>
           <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm">Cerrar sesión</a>
