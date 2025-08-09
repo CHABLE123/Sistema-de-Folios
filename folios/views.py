@@ -1,13 +1,17 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
-from .models import Folio
+from .models import Folio, Tema, ConsecutivoFolio, user_tiene_bloqueo
 from .models import Usuario
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.views.decorators.http import require_POST
+from django.db import transaction
+from django.utils import timezone
+from io import BytesIO
+import pandas as pd
 
 @login_required
 @require_POST
@@ -111,6 +115,27 @@ def dashboard_subadmin(request):
     }
 
     return render(request, 'folios/dashboard_subadmin.html', context)
+
+@login_required
+def dashboard_jefe(request):
+    qs = Folio.objects.filter(usuario=request.user)
+    context = {
+        'total_folios': qs.count(),
+        'pendientes': qs.filter(estatus='PENDIENTE').count(),
+        'concluidos': qs.filter(estatus='CONCLUIDO').count(),
+    }
+    return render(request, 'folios/dashboard_jefe.html', context)
+
+@login_required
+def dashboard_operativo(request):
+    qs = Folio.objects.filter(usuario=request.user)
+    context = {
+        'total_folios': qs.count(),
+        'pendientes': qs.filter(estatus='PENDIENTE').count(),
+        'concluidos': qs.filter(estatus='CONCLUIDO').count(),
+    }
+    return render(request, 'folios/dashboard_operativo.html', context)
+
 
 
 def dashboard_jefe(request):
@@ -284,4 +309,142 @@ def usuario_eliminar(request, pk):
     u.delete()
     messages.success(request, 'Usuario eliminado definitivamente.')
     return redirect('usuarios_lista')
+
+@login_required
+def folio_registro(request):
+    # Roles con permiso a registrar folios: todos, pero con bloqueo si tienen >4 días pendientes
+    if user_tiene_bloqueo(request.user):
+        # Mostrar alerta y no permitir registrar
+        return render(request, 'folios/folio_bloqueado.html')
+
+    temas = Tema.objects.all().order_by('nombre')
+
+    if request.method == 'POST':
+        rfc = request.POST.get('rfc', '').strip()
+        resolucion = request.POST.get('resolucion', '').strip()
+        contribuyente = request.POST.get('contribuyente', '').strip()
+        dependencia = request.POST.get('dependencia', '').strip()
+        motivo = request.POST.get('motivo', '').strip()
+        tema_id = request.POST.get('tema')
+        tipo_firmado = request.POST.get('tipo_firmado')
+
+        # Generar folio consecutivo en transacción
+        with transaction.atomic():
+            c = ConsecutivoFolio.objects.select_for_update().get(llave='FOLIO')
+            c.ultimo += 1
+            numero_folio = f"{c.ultimo:04d}"
+            # Crear folio
+            Folio.objects.create(
+                numero_folio=numero_folio,
+                rfc=rfc,
+                resolucion=resolucion,
+                contribuyente=contribuyente,
+                dependencia=dependencia,
+                motivo=motivo,
+                tema=Tema.objects.get(pk=tema_id),
+                tipo_firmado=tipo_firmado,
+                usuario=request.user,
+            )
+            c.save()
+
+        # Mostrar modal con número de folio
+        return render(request, 'folios/folio_registro.html', {
+            'temas': temas,
+            'folio_creado': numero_folio
+        })
+
+    return render(request, 'folios/folio_registro.html', {'temas': temas})
+
+
+@login_required
+def folios_consulta(request):
+    # Filtros
+    estatus = request.GET.get('estatus', '')
+    tema_id = request.GET.get('tema', '')
+    q = request.GET.get('q', '').strip()
+
+    # Visibilidad por rol
+    if request.user.perfil in ['ADMIN', 'SUBADMIN']:
+        qs = Folio.objects.select_related('tema', 'usuario').all()
+    else:
+        qs = Folio.objects.select_related('tema', 'usuario').filter(usuario=request.user)
+
+    if estatus:
+        qs = qs.filter(estatus=estatus)
+    if tema_id:
+        qs = qs.filter(tema_id=tema_id)
+    if q:
+        qs = qs.filter(
+            models.Q(numero_folio__icontains=q) |
+            models.Q(rfc__icontains=q) |
+            models.Q(contribuyente__icontains=q) |
+            models.Q(dependencia__icontains=q) |
+            models.Q(motivo__icontains=q)
+        )
+
+    temas = Tema.objects.all().order_by('nombre')
+    return render(request, 'folios/folios_consulta.html', {
+        'temas': temas,
+        'folios': qs.order_by('-fecha_registro', '-id'),
+        'f_estatus': estatus,
+        'f_tema': tema_id,
+        'q': q
+    })
+
+
+@login_required
+def folios_exportar_excel(request):
+    # Los mismos filtros que en la vista de consulta
+    estatus = request.GET.get('estatus', '')
+    tema_id = request.GET.get('tema', '')
+    q = request.GET.get('q', '').strip()
+
+    if request.user.perfil in ['ADMIN', 'SUBADMIN']:
+        qs = Folio.objects.select_related('tema', 'usuario').all()
+    else:
+        qs = Folio.objects.select_related('tema', 'usuario').filter(usuario=request.user)
+
+    if estatus:
+        qs = qs.filter(estatus=estatus)
+    if tema_id:
+        qs = qs.filter(tema_id=tema_id)
+    if q:
+        qs = qs.filter(
+            models.Q(numero_folio__icontains=q) |
+            models.Q(rfc__icontains=q) |
+            models.Q(contribuyente__icontains=q) |
+            models.Q(dependencia__icontains=q) |
+            models.Q(motivo__icontains=q)
+        )
+
+    # Construir DataFrame
+    data = []
+    for f in qs.order_by('numero_folio'):
+        data.append({
+            'Folio': f.numero_folio,
+            'RFC': f.rfc,
+            'Resolución': f.resolucion,
+            'Contribuyente': f.contribuyente,
+            'Dependencia': f.dependencia,
+            'Motivo': f.motivo,
+            'Tema': f.tema.nombre,
+            'Tipo firmado': dict(Folio.TIPO_FIRMADO)[f.tipo_firmado],
+            'Estatus': dict(Folio.ESTATUS)[f.estatus],
+            'Fecha registro': f.fecha_registro.strftime('%Y-%m-%d'),
+            'Usuario': f.usuario.numero_empleado,
+        })
+    df = pd.DataFrame(data)
+
+    # Exportar a XLSX en memoria
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Folios')
+    output.seek(0)
+
+    resp = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    resp['Content-Disposition'] = f'attachment; filename="folios_{timezone.now().date()}.xlsx"'
+    return resp
 

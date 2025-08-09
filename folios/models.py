@@ -1,7 +1,8 @@
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.db import models
 from django.utils import timezone
+from datetime import timedelta
 
 class Tema(models.Model):
     nombre = models.CharField(max_length=100, unique=True)
@@ -76,3 +77,15 @@ class Folio(models.Model):
 
     def __str__(self):
         return f"Folio {self.numero_folio}"
+    
+class ConsecutivoFolio(models.Model):
+# Única fila para llevar el consecutivo global
+    llave = models.CharField(max_length=20, unique=True, default='FOLIO')
+    ultimo = models.PositiveIntegerField(default=0)
+    def __str__(self):
+        return f"{self.llave}: {self.ultimo}"
+
+def user_tiene_bloqueo(user):
+    """Bloquea si el usuario tiene algún folio PENDIENTE con antigüedad > 4 días."""
+    limite = timezone.localdate() - timedelta(days=4)
+    return Folio.objects.filter(usuario=user, estatus='PENDIENTE', fecha_registro__lt=limite).exists()

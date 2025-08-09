@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Consulta de Folios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- DataTables -->
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#">Sistema de Folios</a>
+    <div class="collapse navbar-collapse">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="{% url 'folio_registro' %}">Registrar Folio</a></li>
+        <li class="nav-item"><a class="nav-link active" href="{% url 'folios_consulta' %}">Consultar Folios</a></li>
+      </ul>
+    </div>
+    <div class="d-flex">
+      <span class="navbar-text text-white me-3">{{ request.user.get_perfil_display }}</span>
+      <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm">Cerrar sesión</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-4">
+  <h3 class="mb-3">Consulta de Folios</h3>
+
+  <!-- Filtros simples (se aplican por GET y también puedes usar el buscador de DataTables) -->
+  <form class="row g-2 mb-3" method="get">
+    <div class="col-md-3">
+      <select name="estatus" class="form-select">
+        <option value="">Estatus: Todos</option>
+        <option value="PENDIENTE" {% if f_estatus == 'PENDIENTE' %}selected{% endif %}>Pendiente</option>
+        <option value="CONCLUIDO" {% if f_estatus == 'CONCLUIDO' %}selected{% endif %}>Concluido</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <select name="tema" class="form-select">
+        <option value="">Tema: Todos</option>
+        {% for t in temas %}
+          <option value="{{ t.id }}" {% if f_tema == t.id|stringformat:'s' %}selected{% endif %}>{{ t.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Buscar...">
+    </div>
+    <div class="col-md-2 d-grid">
+      <button class="btn btn-primary">Filtrar</button>
+    </div>
+  </form>
+
+  <div class="d-flex mb-2 gap-2">
+    <a class="btn btn-outline-success"
+       href="{% url 'folios_exportar_excel' %}?estatus={{ f_estatus }}&tema={{ f_tema }}&q={{ q|urlencode }}">
+      Exportar a Excel
+    </a>
+  </div>
+
+  <div class="card shadow rounded-4">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="tablaFolios" class="table table-striped table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Folio</th>
+              <th>Fecha</th>
+              <th>RFC</th>
+              <th>Contribuyente</th>
+              <th>Dependencia</th>
+              <th>Tema</th>
+              <th>Tipo firmado</th>
+              <th>Estatus</th>
+              <th>Usuario</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in folios %}
+              <tr>
+                <td>{{ f.numero_folio }}</td>
+                <td>{{ f.fecha_registro }}</td>
+                <td>{{ f.rfc }}</td>
+                <td>{{ f.contribuyente }}</td>
+                <td>{{ f.dependencia }}</td>
+                <td>{{ f.tema.nombre }}</td>
+                <td>{{ f.get_tipo_firmado_display }}</td>
+                <td>
+                  {% if f.estatus == 'PENDIENTE' %}
+                    <span class="badge text-bg-warning">Pendiente</span>
+                  {% else %}
+                    <span class="badge text-bg-success">Concluido</span>
+                  {% endif %}
+                </td>
+                <td>{{ f.usuario.numero_empleado }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JS -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script>
+$(function(){
+  $('#tablaFolios').DataTable({
+    pageLength: 10,
+    order: [[0, 'desc']],
+    language: {
+      url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json'
+    }
+  });
+});
+</script>
+</body>
+</html>

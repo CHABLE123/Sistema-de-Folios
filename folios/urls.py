@@ -18,6 +18,10 @@ urlpatterns = [
     path('usuarios/<int:pk>/toggle-activo/', views.usuario_toggle_activo, name='usuario_toggle_activo'),
     path('usuarios/<int:pk>/eliminar/', views.usuario_eliminar, name='usuario_eliminar'),
 
+    # Registro del folio
+    path('folios/registro/', views.folio_registro, name='folio_registro'),
+    path('folios/consulta/', views.folios_consulta, name='folios_consulta'),
+    path('folios/exportar/', views.folios_exportar_excel, name='folios_exportar_excel'),
 
 
 
