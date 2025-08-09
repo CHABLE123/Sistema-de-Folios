@@ -7,6 +7,56 @@ from .models import Folio
 from .models import Usuario
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.views.decorators.http import require_POST
+
+@login_required
+@require_POST
+def usuario_toggle_activo(request, pk):
+    if request.user.perfil not in ['ADMIN', 'SUBADMIN']:
+        messages.error(request, 'No tienes permiso para esta acción.')
+        return redirect(_redir_por_perfil(request.user))
+
+    u = get_object_or_404(Usuario, pk=pk)
+
+    # Protecciones
+    if u.pk == request.user.pk:
+        messages.error(request, 'No puedes desactivar tu propio usuario.')
+        return redirect('usuarios_lista')
+
+    # Solo ADMIN puede tocar superusuarios
+    if u.is_superuser and request.user.perfil != 'ADMIN':
+        messages.error(request, 'Solo un Administrador puede activar/desactivar a un superusuario.')
+        return redirect('usuarios_lista')
+
+    u.is_active = not u.is_active
+    u.save()
+    messages.success(request, f"Usuario {'activado' if u.is_active else 'desactivado'} correctamente.")
+    return redirect('usuarios_lista')
+
+
+@login_required
+@require_POST
+def usuario_eliminar(request, pk):
+    # Hard delete solo ADMIN
+    if request.user.perfil != 'ADMIN':
+        messages.error(request, 'Solo un Administrador puede eliminar usuarios.')
+        return redirect(_redir_por_perfil(request.user))
+
+    u = get_object_or_404(Usuario, pk=pk)
+
+    # Protecciones
+    if u.pk == request.user.pk:
+        messages.error(request, 'No puedes eliminar tu propio usuario.')
+        return redirect('usuarios_lista')
+
+    if u.is_superuser:
+        messages.error(request, 'No se permite eliminar superusuarios.')
+        return redirect('usuarios_lista')
+
+    u.delete()
+    messages.success(request, 'Usuario eliminado definitivamente.')
+    return redirect('usuarios_lista')
+
 
 def login_view(request):
     if request.method == 'POST':
@@ -185,5 +235,53 @@ def usuario_actualizar(request, pk):
         return redirect('usuarios_lista')
 
     # Si viniera GET, podrías retornar JSON, pero el flujo es por POST desde el modal
+    return redirect('usuarios_lista')
+
+@login_required
+@require_POST
+def usuario_toggle_activo(request, pk):
+    if request.user.perfil not in ['ADMIN', 'SUBADMIN']:
+        messages.error(request, 'No tienes permiso para esta acción.')
+        return redirect(_redir_por_perfil(request.user))
+
+    u = get_object_or_404(Usuario, pk=pk)
+
+    # Protecciones
+    if u.pk == request.user.pk:
+        messages.error(request, 'No puedes desactivar tu propio usuario.')
+        return redirect('usuarios_lista')
+
+    # Solo ADMIN puede tocar superusuarios
+    if u.is_superuser and request.user.perfil != 'ADMIN':
+        messages.error(request, 'Solo un Administrador puede activar/desactivar a un superusuario.')
+        return redirect('usuarios_lista')
+
+    u.is_active = not u.is_active
+    u.save()
+    messages.success(request, f"Usuario {'activado' if u.is_active else 'desactivado'} correctamente.")
+    return redirect('usuarios_lista')
+
+
+@login_required
+@require_POST
+def usuario_eliminar(request, pk):
+    # Hard delete solo ADMIN
+    if request.user.perfil != 'ADMIN':
+        messages.error(request, 'Solo un Administrador puede eliminar usuarios.')
+        return redirect(_redir_por_perfil(request.user))
+
+    u = get_object_or_404(Usuario, pk=pk)
+
+    # Protecciones
+    if u.pk == request.user.pk:
+        messages.error(request, 'No puedes eliminar tu propio usuario.')
+        return redirect('usuarios_lista')
+
+    if u.is_superuser:
+        messages.error(request, 'No se permite eliminar superusuarios.')
+        return redirect('usuarios_lista')
+
+    u.delete()
+    messages.success(request, 'Usuario eliminado definitivamente.')
     return redirect('usuarios_lista')
 

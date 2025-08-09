@@ -15,6 +15,9 @@ urlpatterns = [
     path('usuarios/registro/', views.registrar_usuario, name='registrar_usuario'),
     path('usuarios/', views.usuarios_lista, name='usuarios_lista'),
     path('usuarios/<int:pk>/actualizar/', views.usuario_actualizar, name='usuario_actualizar'),
+    path('usuarios/<int:pk>/toggle-activo/', views.usuario_toggle_activo, name='usuario_toggle_activo'),
+    path('usuarios/<int:pk>/eliminar/', views.usuario_eliminar, name='usuario_eliminar'),
+
 
 
 
