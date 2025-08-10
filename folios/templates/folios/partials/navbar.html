@@ -1,0 +1,87 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+    <!-- Marca -->
+    <a class="navbar-brand" href="#">
+      Sistema de Folios
+    </a>
+
+    <!-- Toggler -->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain" aria-controls="navMain" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Contenido -->
+    <div class="collapse navbar-collapse" id="navMain">
+      <ul class="navbar-nav me-auto">
+
+        <!-- Enlace al Dashboard según perfil -->
+        {% if request.user.perfil == 'ADMIN' %}
+          <li class="nav-item">
+            <a class="nav-link{% if request.resolver_match.url_name == 'dashboard_admin' %} active{% endif %}" href="{% url 'dashboard_admin' %}">
+              Dashboard
+            </a>
+          </li>
+        {% elif request.user.perfil == 'SUBADMIN' %}
+          <li class="nav-item">
+            <a class="nav-link{% if request.resolver_match.url_name == 'dashboard_subadmin' %} active{% endif %}" href="{% url 'dashboard_subadmin' %}">
+              Dashboard
+            </a>
+          </li>
+        {% elif request.user.perfil == 'JEFE' %}
+          <li class="nav-item">
+            <a class="nav-link{% if request.resolver_match.url_name == 'dashboard_jefe' %} active{% endif %}" href="{% url 'dashboard_jefe' %}">
+              Dashboard
+            </a>
+          </li>
+        {% elif request.user.perfil == 'OPERATIVO' %}
+          <li class="nav-item">
+            <a class="nav-link{% if request.resolver_match.url_name == 'dashboard_operativo' %} active{% endif %}" href="{% url 'dashboard_operativo' %}">
+              Dashboard
+            </a>
+          </li>
+        {% endif %}
+
+        <!-- Gestión de usuarios: solo ADMIN / SUBADMIN -->
+        {% if request.user.perfil == 'ADMIN' or request.user.perfil == 'SUBADMIN' %}
+          <li class="nav-item">
+            <a class="nav-link{% if request.resolver_match.url_name == 'registrar_usuario' %} active{% endif %}"
+               href="{% url 'registrar_usuario' %}">
+              Registrar Usuario
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link{% if request.resolver_match.url_name == 'usuarios_lista' %} active{% endif %}"
+               href="{% url 'usuarios_lista' %}">
+              Usuarios
+            </a>
+          </li>
+        {% endif %}
+
+        <!-- Folios: para todos los perfiles -->
+        <li class="nav-item">
+          <a class="nav-link{% if request.resolver_match.url_name == 'folio_registro' %} active{% endif %}"
+             href="{% url 'folio_registro' %}">
+            Registrar Folio
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link{% if request.resolver_match.url_name == 'folios_consulta' %} active{% endif %}"
+             href="{% url 'folios_consulta' %}">
+            Consultar Folios
+          </a>
+        </li>
+
+      </ul>
+
+      <!-- Perfil y logout -->
+      <div class="d-flex">
+        <span class="navbar-text text-white me-3">
+          {{ request.user.get_perfil_display }}
+        </span>
+        <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm">
+          Cerrar sesión
+        </a>
+      </div>
+    </div>
+  </div>
+</nav>

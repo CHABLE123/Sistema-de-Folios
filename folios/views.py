@@ -195,7 +195,13 @@ def usuarios_lista(request):
         return redirect(_redir_por_perfil(request.user))
 
     q = request.GET.get('q', '').strip()
-    orden = request.GET.get('orden', 'numero_empleado')  # opcional
+    orden = request.GET.get('orden', 'numero_empleado')
+
+    # Asegura que el orden coincida con campos REALES del modelo
+    campos_validos = {'numero_empleado', 'nombre', 'perfil'}
+    if orden not in campos_validos:
+        orden = 'numero_empleado'
+
     qs = Usuario.objects.all().order_by(orden)
 
     if q:
@@ -208,12 +214,12 @@ def usuarios_lista(request):
             Q(email__icontains=q)
         )
 
-    paginator = Paginator(qs, 10)  # 10 por página
+    paginator = Paginator(qs, 10)
     page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    usuarios = paginator.get_page(page_number)
 
     return render(request, 'folios/usuarios_lista.html', {
-        'page_obj': page_obj,
+        'usuarios': usuarios,   # <-- clave
         'q': q,
         'orden': orden
     })
