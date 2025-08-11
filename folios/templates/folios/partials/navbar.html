@@ -18,25 +18,25 @@
         {% if request.user.perfil == 'ADMIN' %}
           <li class="nav-item">
             <a class="nav-link{% if request.resolver_match.url_name == 'dashboard_admin' %} active{% endif %}" href="{% url 'dashboard_admin' %}">
-              Dashboard
+              Inicio
             </a>
           </li>
         {% elif request.user.perfil == 'SUBADMIN' %}
           <li class="nav-item">
             <a class="nav-link{% if request.resolver_match.url_name == 'dashboard_subadmin' %} active{% endif %}" href="{% url 'dashboard_subadmin' %}">
-              Dashboard
+              Inicio
             </a>
           </li>
         {% elif request.user.perfil == 'JEFE' %}
           <li class="nav-item">
             <a class="nav-link{% if request.resolver_match.url_name == 'dashboard_jefe' %} active{% endif %}" href="{% url 'dashboard_jefe' %}">
-              Dashboard
+              Inicio
             </a>
           </li>
         {% elif request.user.perfil == 'OPERATIVO' %}
           <li class="nav-item">
             <a class="nav-link{% if request.resolver_match.url_name == 'dashboard_operativo' %} active{% endif %}" href="{% url 'dashboard_operativo' %}">
-              Dashboard
+              Inicio
             </a>
           </li>
         {% endif %}
@@ -55,6 +55,12 @@
               Usuarios
             </a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link{% if request.resolver_match.url_name == 'temas_lista' %} active{% endif %}"
+              href="{% url 'temas_lista' %}">
+            Temas
+            </a>
+          </li>
         {% endif %}
 
         <!-- Folios: para todos los perfiles -->
@@ -70,7 +76,6 @@
             Consultar Folios
           </a>
         </li>
-
       </ul>
 
       <!-- Perfil y logout -->

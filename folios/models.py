@@ -5,7 +5,12 @@ from django.utils import timezone
 from datetime import timedelta
 
 class Tema(models.Model):
-    nombre = models.CharField(max_length=100, unique=True)
+    nombre = models.CharField(max_length=150, unique=True)
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nombre']
 
     def __str__(self):
         return self.nombre
@@ -69,7 +74,7 @@ class Folio(models.Model):
     contribuyente = models.CharField(max_length=200)
     dependencia = models.CharField(max_length=200)
     motivo = models.TextField()
-    tema = models.ForeignKey(Tema, on_delete=models.CASCADE)
+    tema = models.ForeignKey(Tema, on_delete=models.PROTECT)
     tipo_firmado = models.CharField(max_length=10, choices=TIPO_FIRMADO)
     estatus = models.CharField(max_length=10, choices=ESTATUS, default='PENDIENTE')
     fecha_registro = models.DateField(default=timezone.now)

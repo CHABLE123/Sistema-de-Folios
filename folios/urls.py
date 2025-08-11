@@ -23,6 +23,13 @@ urlpatterns = [
     path('folios/consulta/', views.folios_consulta, name='folios_consulta'),
     path('folios/exportar/', views.folios_exportar_excel, name='folios_exportar_excel'),
 
+    # Temas
+    path('temas/', views.temas_lista, name='temas_lista'),
+    path('temas/crear/', views.tema_crear, name='tema_crear'),
+    path('temas/<int:pk>/actualizar/', views.tema_actualizar, name='tema_actualizar'),
+    path('temas/<int:pk>/eliminar/', views.tema_eliminar, name='tema_eliminar'),
+
+
 
 
 ]

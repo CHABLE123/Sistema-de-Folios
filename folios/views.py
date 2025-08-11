@@ -6,8 +6,8 @@ from django.contrib.auth.decorators import login_required
 from .models import Folio, Tema, ConsecutivoFolio, user_tiene_bloqueo
 from .models import Usuario
 from django.core.paginator import Paginator
-from django.db.models import Q
-from django.views.decorators.http import require_POST
+from django.db.models import Q, ProtectedError
+from django.views.decorators.http import require_POST, require_http_methods
 from django.db import transaction
 from django.utils import timezone
 from io import BytesIO
@@ -135,14 +135,6 @@ def dashboard_operativo(request):
         'concluidos': qs.filter(estatus='CONCLUIDO').count(),
     }
     return render(request, 'folios/dashboard_operativo.html', context)
-
-
-
-def dashboard_jefe(request):
-    return HttpResponse("Dashboard Jefe de Departamento")
-
-def dashboard_operativo(request):
-    return HttpResponse("Dashboard Operativo")
 
 @login_required
 def registrar_usuario(request):
@@ -318,28 +310,51 @@ def usuario_eliminar(request, pk):
 
 @login_required
 def folio_registro(request):
-    # Roles con permiso a registrar folios: todos, pero con bloqueo si tienen >4 días pendientes
+    """
+    Registro de folios con:
+    - Bloqueo por >4 días pendientes (user_tiene_bloqueo)
+    - Numeración consecutiva segura (select_for_update + get_or_create)
+    - Temas activos en el select
+    - Modal con número de folio generado
+    """
+    # Si el usuario está bloqueado, muestra aviso y no permite registrar
     if user_tiene_bloqueo(request.user):
-        # Mostrar alerta y no permitir registrar
         return render(request, 'folios/folio_bloqueado.html')
 
-    temas = Tema.objects.all().order_by('nombre')
+    # Temas activos para el select
+    temas = Tema.objects.filter(activo=True).order_by('nombre')
 
     if request.method == 'POST':
-        rfc = request.POST.get('rfc', '').strip()
-        resolucion = request.POST.get('resolucion', '').strip()
-        contribuyente = request.POST.get('contribuyente', '').strip()
-        dependencia = request.POST.get('dependencia', '').strip()
-        motivo = request.POST.get('motivo', '').strip()
+        rfc = (request.POST.get('rfc') or '').strip()
+        resolucion = (request.POST.get('resolucion') or '').strip()
+        contribuyente = (request.POST.get('contribuyente') or '').strip()
+        dependencia = (request.POST.get('dependencia') or '').strip()
+        motivo = (request.POST.get('motivo') or '').strip()
         tema_id = request.POST.get('tema')
         tipo_firmado = request.POST.get('tipo_firmado')
 
-        # Generar folio consecutivo en transacción
+        # Validaciones básicas
+        if not (rfc and contribuyente and dependencia and resolucion and motivo and tema_id and tipo_firmado):
+            messages.error(request, 'Todos los campos son obligatorios.')
+            return render(request, 'folios/folio_registro.html', {'temas': temas})
+
+        try:
+            tema_obj = Tema.objects.get(pk=tema_id, activo=True)
+        except Tema.DoesNotExist:
+            messages.error(request, 'El tema seleccionado no es válido o está inactivo.')
+            return render(request, 'folios/folio_registro.html', {'temas': temas})
+
+        # Generar folio consecutivo de forma segura
         with transaction.atomic():
-            c = ConsecutivoFolio.objects.select_for_update().get(llave='FOLIO')
-            c.ultimo += 1
-            numero_folio = f"{c.ultimo:04d}"
-            # Crear folio
+            # Lock de fila + creación si no existe
+            consecutivo, _ = ConsecutivoFolio.objects.select_for_update().get_or_create(
+                llave='FOLIO',
+                defaults={'ultimo': 0}
+            )
+            consecutivo.ultimo += 1
+            numero_folio = f"{consecutivo.ultimo:04d}"
+
+            # Crear el folio (estatus por defecto en el modelo)
             Folio.objects.create(
                 numero_folio=numero_folio,
                 rfc=rfc,
@@ -347,18 +362,21 @@ def folio_registro(request):
                 contribuyente=contribuyente,
                 dependencia=dependencia,
                 motivo=motivo,
-                tema=Tema.objects.get(pk=tema_id),
+                tema=tema_obj,
                 tipo_firmado=tipo_firmado,
                 usuario=request.user,
             )
-            c.save()
 
-        # Mostrar modal con número de folio
+            # Guardar el nuevo valor del consecutivo
+            consecutivo.save()
+
+        # Mostrar modal con el número de folio; dejar el form listo para uno nuevo
         return render(request, 'folios/folio_registro.html', {
             'temas': temas,
             'folio_creado': numero_folio
         })
 
+    # GET
     return render(request, 'folios/folio_registro.html', {'temas': temas})
 
 
@@ -454,3 +472,87 @@ def folios_exportar_excel(request):
     resp['Content-Disposition'] = f'attachment; filename="folios_{timezone.now().date()}.xlsx"'
     return resp
 
+def _solo_gestores(user):
+    return user.perfil in ('ADMIN', 'SUBADMIN')
+
+@login_required
+def temas_lista(request):
+    if not _solo_gestores(request.user):
+        messages.error(request, 'No tienes permiso para acceder a Temas.')
+        # Redirige al dashboard correspondiente
+        return redirect({
+            'ADMIN': 'dashboard_admin',
+            'SUBADMIN': 'dashboard_subadmin',
+            'JEFE': 'dashboard_jefe',
+            'OPERATIVO': 'dashboard_operativo'
+        }.get(request.user.perfil, 'dashboard_operativo'))
+
+    q = request.GET.get('q', '').strip()
+    qs = Tema.objects.all()
+    if q:
+        qs = qs.filter(nombre__icontains=q)
+
+    return render(request, 'folios/temas_lista.html', {
+        'temas': qs,
+        'q': q
+    })
+
+@login_required
+@require_POST
+def tema_crear(request):
+    if not _solo_gestores(request.user):
+        messages.error(request, 'No tienes permiso para crear temas.')
+        return redirect('temas_lista')
+
+    nombre = request.POST.get('nombre', '').strip()
+    if not nombre:
+        messages.error(request, 'El nombre es obligatorio.')
+        return redirect('temas_lista')
+
+    if Tema.objects.filter(nombre__iexact=nombre).exists():
+        messages.error(request, 'Ya existe un tema con ese nombre.')
+        return redirect('temas_lista')
+
+    Tema.objects.create(nombre=nombre, activo=True)
+    messages.success(request, 'Tema creado correctamente.')
+    return redirect('temas_lista')
+
+@login_required
+@require_POST
+def tema_actualizar(request, pk):
+    if not _solo_gestores(request.user):
+        messages.error(request, 'No tienes permiso para actualizar temas.')
+        return redirect('temas_lista')
+
+    tema = get_object_or_404(Tema, pk=pk)
+    nombre = request.POST.get('nombre', '').strip()
+    activo = True if request.POST.get('activo') == 'on' else False
+
+    if not nombre:
+        messages.error(request, 'El nombre es obligatorio.')
+        return redirect('temas_lista')
+
+    if Tema.objects.exclude(pk=tema.pk).filter(nombre__iexact=nombre).exists():
+        messages.error(request, 'Ya existe otro tema con ese nombre.')
+        return redirect('temas_lista')
+
+    tema.nombre = nombre
+    tema.activo = activo
+    tema.save()
+    messages.success(request, 'Tema actualizado correctamente.')
+    return redirect('temas_lista')
+
+@login_required
+@require_POST
+def tema_eliminar(request, pk):
+    if not _solo_gestores(request.user):
+        messages.error(request, 'No tienes permiso para eliminar temas.')
+        return redirect('temas_lista')
+
+    tema = get_object_or_404(Tema, pk=pk)
+    try:
+        tema.delete()
+        messages.success(request, 'Tema eliminado correctamente.')
+    except ProtectedError:
+        messages.error(request, 'No se puede eliminar el tema porque está siendo usado por folios.')
+    return redirect('temas_lista')
