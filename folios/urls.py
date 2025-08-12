@@ -29,6 +29,10 @@ urlpatterns = [
     path('temas/<int:pk>/actualizar/', views.tema_actualizar, name='tema_actualizar'),
     path('temas/<int:pk>/eliminar/', views.tema_eliminar, name='tema_eliminar'),
 
+    # Consultar folios
+    path('folios/<int:pk>/despachar/', views.folio_despachar, name='folio_despachar'),
+
+
 
 
 

@@ -556,3 +556,21 @@ def tema_eliminar(request, pk):
     except ProtectedError:
         messages.error(request, 'No se puede eliminar el tema porque está siendo usado por folios.')
     return redirect('temas_lista')
+
+@require_POST
+@login_required
+def folio_despachar(request, pk):
+    if request.user.perfil != 'ADMIN':
+        messages.error(request, 'Solo un Administrador puede despachar folios.')
+        return redirect('folios_consulta')
+
+    folio = get_object_or_404(Folio, pk=pk)
+    if folio.estatus == 'CONCLUIDO':
+        messages.info(request, f'El folio {folio.numero_folio} ya estaba concluido.')
+    else:
+        folio.estatus = 'CONCLUIDO'
+        folio.save(update_fields=['estatus'])
+        messages.success(request, f'Folio {folio.numero_folio} despachado (concluido).')
+
+    # Volver a la consulta (mantén filtros si quieres usando HTTP_REFERER)
+    return redirect(request.META.get('HTTP_REFERER', 'folios_consulta'))

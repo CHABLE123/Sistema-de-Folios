@@ -56,6 +56,9 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.numero_empleado} - {self.nombre}"
+    
+    def nombre_completo(self):
+        return f"{self.nombre} {self.apellido_paterno} {self.apellido_materno}"
 
 class Folio(models.Model):
     TIPO_FIRMADO = (
@@ -77,7 +80,7 @@ class Folio(models.Model):
     tema = models.ForeignKey(Tema, on_delete=models.PROTECT)
     tipo_firmado = models.CharField(max_length=10, choices=TIPO_FIRMADO)
     estatus = models.CharField(max_length=10, choices=ESTATUS, default='PENDIENTE')
-    fecha_registro = models.DateField(default=timezone.now)
+    fecha_registro = models.DateTimeField(auto_now_add=True)
     usuario = models.ForeignKey('Usuario', on_delete=models.CASCADE)
 
     def __str__(self):

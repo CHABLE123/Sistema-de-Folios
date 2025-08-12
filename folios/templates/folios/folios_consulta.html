@@ -13,7 +13,7 @@
   {% for message in messages %}
     <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
       {{ message }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
   {% endfor %}
 {% endif %}
@@ -65,13 +65,16 @@
             <th>Tipo firmado</th>
             <th>Estatus</th>
             <th>Usuario</th>
+            {% if request.user.perfil == 'ADMIN' %}
+              <th>Acciones</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
           {% for f in folios %}
             <tr>
               <td>{{ f.numero_folio }}</td>
-              <td>{{ f.fecha_registro }}</td>
+              <td>{{ f.fecha_registro|date:"Y-m-d" }}</td>
               <td>{{ f.rfc }}</td>
               <td>{{ f.contribuyente }}</td>
               <td>{{ f.dependencia }}</td>
@@ -84,11 +87,50 @@
                   <span class="badge text-bg-success">Concluido</span>
                 {% endif %}
               </td>
-              <td>{{ f.usuario.numero_empleado }}</td>
+              <td>{{ f.usuario.nombre_completo }}</td>
+
+              {% if request.user.perfil == 'ADMIN' %}
+                <td>
+                  {% if f.estatus == 'PENDIENTE' %}
+                    <button
+                      class="btn btn-sm btn-success"
+                      data-bs-toggle="modal"
+                      data-bs-target="#modalDespachar"
+                      data-id="{{ f.id }}"
+                      data-numero="{{ f.numero_folio }}">
+                      Despachar
+                    </button>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              {% endif %}
             </tr>
           {% endfor %}
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Despachar (solo se muestra, pero no estorba si no eres admin porque no habrá botones que lo llamen) -->
+<div class="modal fade" id="modalDespachar" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4">
+      <div class="modal-header">
+        <h5 class="modal-title">Despachar folio</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="formDespachar">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p id="textoDespachar" class="mb-0"></p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-success" type="submit">Aceptar</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -104,11 +146,24 @@ $(function(){
   $('#tablaFolios').DataTable({
     pageLength: 10,
     order: [[0, 'desc']],
-    language: {
-      url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json'
-    }
+    language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json' }
   });
+});
+
+// Modal Despachar → set action + texto
+const modalDespachar = document.getElementById('modalDespachar');
+modalDespachar.addEventListener('show.bs.modal', function (event) {
+  const btn = event.relatedTarget;
+  const id = btn.getAttribute('data-id');
+  const numero = btn.getAttribute('data-numero');
+
+  const form = document.getElementById('formDespachar');
+  form.action = `{% url 'folio_despachar' 0 %}`.replace('/0/', `/${id}/`);
+
+  const texto = document.getElementById('textoDespachar');
+  texto.textContent = `¿Deseas despachar el folio "${numero}"?`;
 });
 </script>
 {% endblock %}
+
 
