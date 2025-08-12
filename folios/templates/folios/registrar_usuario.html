@@ -18,15 +18,14 @@
   <div class="card-body p-4">
     <form method="POST">
       {% csrf_token %}
-      
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label">Nombre</label>
-          <input type="text" name="first_name" class="form-control form-control-lg" required>
+          <input type="text" name="nombre" class="form-control form-control-lg" required>
         </div>
         <div class="col-md-4">
           <label class="form-label">Apellido Paterno</label>
-          <input type="text" name="last_name" class="form-control form-control-lg" required>
+          <input type="text" name="apellido_paterno" class="form-control form-control-lg" required>
         </div>
         <div class="col-md-4">
           <label class="form-label">Apellido Materno</label>
@@ -73,3 +72,4 @@
   </div>
 </div>
 {% endblock %}
+
