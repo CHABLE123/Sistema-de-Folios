@@ -574,3 +574,102 @@ def folio_despachar(request, pk):
 
     # Volver a la consulta (mantén filtros si quieres usando HTTP_REFERER)
     return redirect(request.META.get('HTTP_REFERER', 'folios_consulta'))
+
+def _es_gestor(user):
+    return user.perfil in ('ADMIN', 'SUBADMIN')
+
+@login_required
+def folio_editar(request, pk):
+    folio = get_object_or_404(Folio, pk=pk)
+
+    # Permiso de edición: Admin/Subadmin cualquiera; otros solo su propio folio
+    if not _es_gestor(request.user) and folio.usuario_id != request.user.id:
+        messages.error(request, 'No tienes permiso para editar este folio.')
+        return redirect('folios_consulta')
+    
+    # Regla: si el folio está CONCLUIDO, solo ADMIN/SUBADMIN pueden editarlo
+    if folio.estatus == 'CONCLUIDO' and not _es_gestor(request.user):
+        messages.error(request, f'El folio {folio.numero_folio} está concluido y no puede editarse.')
+        return redirect('folios_consulta')
+
+    temas = Tema.objects.filter(activo=True).order_by('nombre')
+
+    if request.method == 'POST':
+        rfc = (request.POST.get('rfc') or '').strip()
+        resolucion = (request.POST.get('resolucion') or '').strip()
+        contribuyente = (request.POST.get('contribuyente') or '').strip()
+        dependencia = (request.POST.get('dependencia') or '').strip()
+        motivo = (request.POST.get('motivo') or '').strip()
+        tema_id = request.POST.get('tema')
+        tipo_firmado = request.POST.get('tipo_firmado')
+        nuevo_estatus = request.POST.get('estatus')  # Solo Admin
+
+        # Validaciones simples
+        errores = []
+        if not rfc: errores.append('RFC es obligatorio.')
+        if not resolucion: errores.append('Resolución es obligatoria.')
+        if not contribuyente: errores.append('Contribuyente es obligatorio.')
+        if not dependencia: errores.append('Dependencia es obligatoria.')
+        if not motivo: errores.append('Motivo es obligatorio.')
+        if not tema_id: errores.append('Tema es obligatorio.')
+        if not tipo_firmado: errores.append('Tipo de firmado es obligatorio.')
+
+        try:
+            tema_obj = Tema.objects.get(pk=tema_id, activo=True)
+        except Tema.DoesNotExist:
+            errores.append('El tema seleccionado no es válido o está inactivo.')
+            tema_obj = None
+
+        if errores:
+            for e in errores:
+                messages.error(request, e)
+            # Volver a pintar con valores que intentó enviar
+            return render(request, 'folios/folio_editar.html', {
+                'f': folio,
+                'temas': temas,
+                'form': {
+                    'rfc': rfc,
+                    'resolucion': resolucion,
+                    'contribuyente': contribuyente,
+                    'dependencia': dependencia,
+                    'motivo': motivo,
+                    'tema_id': tema_id,
+                    'tipo_firmado': tipo_firmado,
+                    'estatus': nuevo_estatus or folio.estatus,
+                },
+                'es_admin': _es_gestor(request.user),
+            })
+
+        # Actualizar
+        folio.rfc = rfc
+        folio.resolucion = resolucion
+        folio.contribuyente = contribuyente
+        folio.dependencia = dependencia
+        folio.motivo = motivo
+        folio.tema = tema_obj
+        folio.tipo_firmado = tipo_firmado
+
+        # Solo Admin/Subadmin pueden cambiar estatus
+        if _es_gestor(request.user) and nuevo_estatus in ('PENDIENTE', 'CONCLUIDO'):
+            folio.estatus = nuevo_estatus
+
+        folio.save()
+        messages.success(request, f'Folio {folio.numero_folio} actualizado correctamente.')
+        return redirect('folios_consulta')
+
+    # GET → pintar formulario con valores actuales
+    return render(request, 'folios/folio_editar.html', {
+        'f': folio,
+        'temas': temas,
+        'form': {
+            'rfc': folio.rfc,
+            'resolucion': folio.resolucion,
+            'contribuyente': folio.contribuyente,
+            'dependencia': folio.dependencia,
+            'motivo': folio.motivo,
+            'tema_id': str(folio.tema_id),
+            'tipo_firmado': folio.tipo_firmado,
+            'estatus': folio.estatus,
+        },
+        'es_admin': _es_gestor(request.user),
+    })

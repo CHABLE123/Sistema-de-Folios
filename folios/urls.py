@@ -32,6 +32,11 @@ urlpatterns = [
     # Consultar folios
     path('folios/<int:pk>/despachar/', views.folio_despachar, name='folio_despachar'),
 
+    # Edición
+    path('folios/<int:pk>/editar/', views.folio_editar, name='folio_editar'),
+
+
+
 
 
 
