@@ -14,6 +14,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from io import BytesIO
 import pandas as pd
+import xlsxwriter
+from datetime import datetime  
 
 @login_required
 @require_POST
@@ -428,65 +430,168 @@ def folios_consulta(request):
         'q': q
     })
 
-
-
 @login_required
 def folios_exportar_excel(request):
-    # Los mismos filtros que en la vista de consulta
-    estatus = request.GET.get('estatus', '')
-    tema_id = request.GET.get('tema', '')
-    q = request.GET.get('q', '').strip()
-    desde = request.GET.get('desde')  # 'YYYY-MM-DD' o ''
-    hasta = request.GET.get('hasta')  # 'YYYY-MM-DD' o ''
+    # Base queryset + permisos por rol
+    qs = Folio.objects.select_related('tema', 'usuario', 'concluido_por').all()
+    if request.user.perfil in ['JEFE', 'OPERATIVO']:
+        qs = qs.filter(usuario=request.user)
 
-    if request.user.perfil in ['ADMIN', 'SUBADMIN']:
-        qs = Folio.objects.select_related('tema', 'usuario').all()
-    else:
-        qs = Folio.objects.select_related('tema', 'usuario').filter(usuario=request.user)
+    # Filtros
+    estatus = (request.GET.get('estatus') or '').strip()
+    tema = (request.GET.get('tema') or '').strip()
+    q = (request.GET.get('q') or '').strip()
+    desde = (request.GET.get('desde') or '').strip()
+    hasta = (request.GET.get('hasta') or '').strip()
 
     if estatus:
         qs = qs.filter(estatus=estatus)
-    if tema_id:
-        qs = qs.filter(tema_id=tema_id)
+    if tema:
+        qs = qs.filter(tema_id=tema)
     if q:
         qs = qs.filter(
-            models.Q(numero_folio__icontains=q) |
-            models.Q(rfc__icontains=q) |
-            models.Q(contribuyente__icontains=q) |
-            models.Q(dependencia__icontains=q) |
-            models.Q(motivo__icontains=q)
+            Q(numero_folio__icontains=q) |
+            Q(rfc__icontains=q) |
+            Q(contribuyente__icontains=q) |
+            Q(dependencia__icontains=q) |
+            Q(motivo__icontains=q)
         )
+    if desde:
+        qs = qs.filter(fecha_registro__date__gte=desde)
+    if hasta:
+        qs = qs.filter(fecha_registro__date__lte=hasta)
 
-    # Construir DataFrame
-    data = []
-    for f in qs.order_by('numero_folio'):
-        data.append({
+    qs = qs.order_by('-numero_folio')
+
+    # ---- DataFrame detalle
+    rows = []
+    for f in qs:
+        rows.append({
             'Folio': f.numero_folio,
+            'Fecha registro': f.fecha_registro,   # datetime (aware)
             'RFC': f.rfc,
-            'Resolución': f.resolucion,
             'Contribuyente': f.contribuyente,
             'Dependencia': f.dependencia,
-            'Motivo': f.motivo,
-            'Tema': f.tema.nombre,
-            'Tipo firmado': dict(Folio.TIPO_FIRMADO)[f.tipo_firmado],
-            'Estatus': dict(Folio.ESTATUS)[f.estatus],
-            'Fecha registro': f.fecha_registro.strftime('%Y-%m-%d'),
-            'Usuario': f.usuario.numero_empleado,
+            'Tema': f.tema.nombre if f.tema_id else '',
+            'Tipo firmado': f.get_tipo_firmado_display(),
+            'Estatus': 'Concluido' if f.estatus == 'CONCLUIDO' else 'Pendiente',
+            'Usuario (emite)': f.usuario.nombre_completo() if f.usuario_id else '',
+            'Fecha conclusión': f.fecha_conclusion,  # datetime (aware o None)
+            'Concluido por': f.concluido_por.nombre_completo() if f.concluido_por_id else '',
         })
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(rows)
 
-    # Exportar a XLSX en memoria
+    # Writer (xlsxwriter). pandas necesita datetimes NAIVE antes de to_excel
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Folios')
+    writer = pd.ExcelWriter(
+        output,
+        engine='xlsxwriter',
+        engine_kwargs={'options': {'in_memory': True, 'remove_timezone': True}}
+    )
+    workbook = writer.book
+
+    # Formatos
+    fmt_header = workbook.add_format({'bold': True, 'bg_color': '#D9E1F2', 'border': 1})
+    fmt_border = workbook.add_format({'border': 1})
+    fmt_dt = workbook.add_format({'num_format': 'dd-mm-yy hh:mm', 'border': 1})
+
+    # ---- Normalizar datetimes a NAIVE (sin tz) ANTES de to_excel
+    if not df.empty:
+        for col in ['Fecha registro', 'Fecha conclusión']:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce').dt.tz_localize(None)
+
+    # ---- Hoja 1: Folios (detalle)
+    sheet_detalle = 'Folios'
+    if df.empty:
+        df = pd.DataFrame(columns=[
+            'Folio','Fecha registro','RFC','Contribuyente','Dependencia',
+            'Tema','Tipo firmado','Estatus','Usuario (emite)','Fecha conclusión','Concluido por'
+        ])
+
+    df.to_excel(writer, sheet_name=sheet_detalle, index=False)
+    ws = writer.sheets[sheet_detalle]
+
+    # Encabezados con estilo
+    for col, h in enumerate(df.columns):
+        ws.write(0, col, h, fmt_header)
+
+    # Reaplicar formato de fecha a columnas de fecha (pandas ya escribió los valores)
+    # y aplicar bordes a TODAS las celdas, cuidando NaT/NaN.
+    date_cols = {'Fecha registro', 'Fecha conclusión'}
+    if not df.empty:
+        for r in range(len(df)):
+            for c, h in enumerate(df.columns):
+                val = df.iloc[r, c]
+                row_excel = r + 1  # por encabezado
+                if h in date_cols:
+                    if pd.notna(val):
+                        # asegurar datetime naive
+                        dt = pd.to_datetime(val, errors='coerce')
+                        if pd.notna(dt):
+                            ws.write_datetime(row_excel, c, dt.to_pydatetime().replace(tzinfo=None), fmt_dt)
+                        else:
+                            ws.write(row_excel, c, '', fmt_border)
+                    else:
+                        ws.write(row_excel, c, '', fmt_border)
+                else:
+                    # NO fecha: proteger contra NaT/NaN/None
+                    if pd.isna(val):
+                        ws.write(row_excel, c, '', fmt_border)
+                    elif isinstance(val, (pd.Timestamp, datetime)):
+                        # Si accidentalmente quedó un datetime en una col no-fecha
+                        ws.write_datetime(row_excel, c, pd.to_datetime(val).to_pydatetime().replace(tzinfo=None), fmt_dt)
+                    else:
+                        ws.write(row_excel, c, val, fmt_border)
+
+    # Ancho de columnas
+    for c, h in enumerate(df.columns):
+        series = df[h].astype(str) if not df.empty else pd.Series([h])
+        width = min(40, max(len(str(h))+2, int(series.map(len).max())+2 if not df.empty else len(h)+2, 12))
+        # para fechas, un poco más ancho
+        ws.set_column(c, c, max(width, 18) if h in date_cols else width)
+
+    # ---- Hojas de resumen (si hay datos)
+    if not df.empty:
+        piv1 = df.pivot_table(index='Estatus', values='Folio', aggfunc='count').rename(columns={'Folio':'Cantidad'}).reset_index()
+        piv2 = df.pivot_table(index='Tema', values='Folio', aggfunc='count').rename(columns={'Folio':'Cantidad'}).reset_index().sort_values('Cantidad', ascending=False)
+        piv3 = df.pivot_table(index='Usuario (emite)', values='Folio', aggfunc='count').rename(columns={'Folio':'Cantidad'}).reset_index().sort_values('Cantidad', ascending=False)
+        piv4 = df.pivot_table(index='Concluido por', values='Folio', aggfunc='count').rename(columns={'Folio':'Cantidad'}).reset_index().sort_values('Cantidad', ascending=False)
+
+        def write_df(sheet_name, dfi):
+            dfi = dfi.fillna('')  # asegurar que no haya NaN/NaT en resúmenes
+            dfi.to_excel(writer, sheet_name=sheet_name, index=False)
+            w = writer.sheets[sheet_name]
+            # Encabezados
+            for col, h in enumerate(dfi.columns):
+                w.write(0, col, h, fmt_header)
+            # Bordes
+            for r in range(len(dfi)):
+                for c in range(len(dfi.columns)):
+                    w.write(r+1, c, dfi.iloc[r, c], fmt_border)
+            # Ancho
+            for c, h in enumerate(dfi.columns):
+                series = dfi[h].astype(str) if not dfi.empty else pd.Series([h])
+                width = min(40, max(len(str(h))+2, int(series.map(len).max())+2 if not dfi.empty else len(h)+2, 12))
+                w.set_column(c, c, width)
+
+        write_df('Resumen por estatus', piv1)
+        write_df('Resumen por tema', piv2)
+        write_df('Resumen por usuario', piv3)
+        write_df('Resumen por concluyente', piv4)
+
+    # Cerrar y responder
+    writer.close()
     output.seek(0)
 
-    resp = HttpResponse(
-        output.getvalue(),
+    fecha_str = timezone.now().strftime('%Y%m%d_%H%M')
+    response = HttpResponse(
+        output.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    resp['Content-Disposition'] = f'attachment; filename="folios_{timezone.now().date()}.xlsx"'
-    return resp
+    response['Content-Disposition'] = f'attachment; filename="folios_reporte_{fecha_str}.xlsx"'
+    return response
+
 
 def _solo_gestores(user):
     return user.perfil in ('ADMIN', 'SUBADMIN')
@@ -581,14 +686,18 @@ def folio_despachar(request, pk):
         return redirect('folios_consulta')
 
     folio = get_object_or_404(Folio, pk=pk)
+
     if folio.estatus == 'CONCLUIDO':
         messages.info(request, f'El folio {folio.numero_folio} ya estaba concluido.')
-    else:
-        folio.estatus = 'CONCLUIDO'
-        folio.save(update_fields=['estatus'])
-        messages.success(request, f'Folio {folio.numero_folio} despachado (concluido).')
+        return redirect(request.META.get('HTTP_REFERER', 'folios_consulta'))
 
-    # Volver a la consulta (mantén filtros si quieres usando HTTP_REFERER)
+    # Cambiar a concluido y registrar quién/cuándo
+    folio.estatus = 'CONCLUIDO'
+    folio.fecha_conclusion = timezone.now()
+    folio.concluido_por = request.user
+    folio.save(update_fields=['estatus','fecha_conclusion','concluido_por'])
+
+    messages.success(request, f'Folio {folio.numero_folio} despachado (concluido) por {folio.concluido_por.nombre_completo()}.')
     return redirect(request.META.get('HTTP_REFERER', 'folios_consulta'))
 
 def _es_gestor(user):
@@ -665,9 +774,19 @@ def folio_editar(request, pk):
         folio.tema = tema_obj
         folio.tipo_firmado = tipo_firmado
 
+        era = folio.estatus
+
         # Solo Admin/Subadmin pueden cambiar estatus
-        if _es_gestor(request.user) and nuevo_estatus in ('PENDIENTE', 'CONCLUIDO'):
+        if _es_gestor(request.user) and nuevo_estatus in ('PENDIENTE','CONCLUIDO'):
             folio.estatus = nuevo_estatus
+            if era != 'CONCLUIDO' and nuevo_estatus == 'CONCLUIDO':
+                # Se acaba de concluir desde edición
+                folio.fecha_conclusion = timezone.now()
+                folio.concluido_por = request.user
+            elif era == 'CONCLUIDO' and nuevo_estatus == 'PENDIENTE':
+                # Reabierto → limpiamos los campos de conclusión
+                folio.fecha_conclusion = None
+                folio.concluido_por = None
 
         folio.save()
         messages.success(request, f'Folio {folio.numero_folio} actualizado correctamente.')
@@ -689,6 +808,7 @@ def folio_editar(request, pk):
         },
         'es_admin': _es_gestor(request.user),
     })
+
 
 @login_required
 def mi_perfil(request):

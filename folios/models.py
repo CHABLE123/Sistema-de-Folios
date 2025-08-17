@@ -1,8 +1,8 @@
 from django.db import models, transaction
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
-from django.db import models
 from django.utils import timezone
 from datetime import timedelta
+from django.conf import settings
 
 class Tema(models.Model):
     nombre = models.CharField(max_length=150, unique=True)
@@ -83,13 +83,23 @@ class Folio(models.Model):
     fecha_registro = models.DateTimeField(auto_now_add=True)
     usuario = models.ForeignKey('Usuario', on_delete=models.CASCADE)
 
+    # Nuevos (trazabilidad de conclusión)
+    fecha_conclusion = models.DateTimeField(null=True, blank=True)
+    concluido_por = models.ForeignKey(
+        'Usuario',
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='folios_concluidos'
+    )
+
     def __str__(self):
         return f"Folio {self.numero_folio}"
     
 class ConsecutivoFolio(models.Model):
-# Única fila para llevar el consecutivo global
+    # Única fila para llevar el consecutivo global
     llave = models.CharField(max_length=30, unique=True, default='FOLIO')
     ultimo = models.PositiveIntegerField(default=0)
+
     def __str__(self):
         return f"{self.llave}: {self.ultimo}"
 
