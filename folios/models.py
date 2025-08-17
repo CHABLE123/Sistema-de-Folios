@@ -88,7 +88,7 @@ class Folio(models.Model):
     
 class ConsecutivoFolio(models.Model):
 # Única fila para llevar el consecutivo global
-    llave = models.CharField(max_length=20, unique=True, default='FOLIO')
+    llave = models.CharField(max_length=30, unique=True, default='FOLIO')
     ultimo = models.PositiveIntegerField(default=0)
     def __str__(self):
         return f"{self.llave}: {self.ultimo}"
