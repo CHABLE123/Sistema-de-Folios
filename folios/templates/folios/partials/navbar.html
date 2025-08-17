@@ -76,6 +76,11 @@
             Consultar Folios
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link{% if request.resolver_match.url_name == 'mi_perfil' %} active{% endif %}" href="{% url 'mi_perfil' %}">
+            Mi Perfil
+           </a>
+        </li>
       </ul>
 
       <!-- Perfil y logout -->

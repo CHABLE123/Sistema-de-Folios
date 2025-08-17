@@ -1,0 +1,101 @@
+{% extends 'folios/base.html' %}
+
+{% block title %}Mi Perfil{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">Mi Perfil</h4>
+
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<div class="row g-4">
+  <!-- Datos personales -->
+  <div class="col-lg-7">
+    <div class="card shadow rounded-4">
+      <div class="card-header bg-light">
+        <strong>Datos personales</strong>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'mi_perfil' %}">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Nombre</label>
+              <input name="nombre" class="form-control form-control-lg" value="{{ u.nombre }}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Apellido paterno</label>
+              <input name="apellido_paterno" class="form-control form-control-lg" value="{{ u.apellido_paterno }}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Apellido materno</label>
+              <input name="apellido_materno" class="form-control form-control-lg" value="{{ u.apellido_materno }}">
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label">Número de empleado</label>
+              <input class="form-control form-control-lg" value="{{ u.numero_empleado }}" disabled>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">RFC</label>
+              <input class="form-control form-control-lg" value="{{ u.rfc }}" disabled>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Perfil</label>
+              <input class="form-control form-control-lg" value="{{ u.get_perfil_display }}" disabled>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Correo electrónico</label>
+              <input type="email" name="email" class="form-control form-control-lg" value="{{ u.email }}" required>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-primary btn-lg" type="submit">Guardar cambios</button>
+            <a href="javascript:history.back()" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cambiar contraseña -->
+  <div class="col-lg-5">
+    <div class="card shadow rounded-4">
+      <div class="card-header bg-light">
+        <strong>Cambiar contraseña</strong>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'cambiar_password' %}">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Contraseña actual</label>
+            <input type="password" name="password_actual" class="form-control form-control-lg" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nueva contraseña</label>
+            <input type="password" name="password_nueva" class="form-control form-control-lg" required>
+            <div class="form-text">
+              Usa una contraseña segura. Si tienes validadores activos, se aplicarán aquí.
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Confirmar nueva contraseña</label>
+            <input type="password" name="password_confirmar" class="form-control form-control-lg" required>
+          </div>
+          <div class="d-grid">
+            <button class="btn btn-success btn-lg" type="submit">Actualizar contraseña</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

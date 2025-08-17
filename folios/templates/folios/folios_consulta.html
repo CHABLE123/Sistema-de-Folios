@@ -20,14 +20,15 @@
 
   <!-- Filtros (GET) -->
   <form class="row g-2 mb-3" method="get">
-    <div class="col-md-3">
+    <div class="col-md-3 col-lg-2">
       <select name="estatus" class="form-select">
         <option value="">Estatus: Todos</option>
         <option value="PENDIENTE" {% if f_estatus == 'PENDIENTE' %}selected{% endif %}>Pendiente</option>
         <option value="CONCLUIDO" {% if f_estatus == 'CONCLUIDO' %}selected{% endif %}>Concluido</option>
       </select>
     </div>
-    <div class="col-md-3">
+
+    <div class="col-md-3 col-lg-2">
       <select name="tema" class="form-select">
         <option value="">Tema: Todos</option>
         {% for t in temas %}
@@ -35,17 +36,27 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-4">
+
+    <!-- Fecha desde / hasta -->
+    <div class="col-md-3 col-lg-2">
+      <input type="date" name="desde" value="{{ f_desde }}" class="form-control" placeholder="Desde">
+    </div>
+    <div class="col-md-3 col-lg-2">
+      <input type="date" name="hasta" value="{{ f_hasta }}" class="form-control" placeholder="Hasta">
+    </div>
+
+    <div class="col-md-6 col-lg-3">
       <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Buscar folio, RFC, contribuyente, dependencia, motivo...">
     </div>
-    <div class="col-md-2 d-grid">
+
+    <div class="col-md-6 col-lg-1 d-grid">
       <button class="btn btn-primary">Filtrar</button>
     </div>
   </form>
 
   <div class="d-flex mb-2 gap-2">
     <a class="btn btn-outline-success"
-       href="{% url 'folios_exportar_excel' %}?estatus={{ f_estatus }}&tema={{ f_tema }}&q={{ q|urlencode }}">
+       href="{% url 'folios_exportar_excel' %}?estatus={{ f_estatus }}&tema={{ f_tema }}&desde={{ f_desde }}&hasta={{ f_hasta }}&q={{ q|urlencode }}">
       Exportar a Excel
     </a>
   </div>
@@ -89,7 +100,7 @@
                 <td>
                   <div class="d-flex gap-2">
                     {% if request.user.perfil == 'ADMIN' %}
-                      <!-- ADMIN: siempre puede editar; y despachar si está pendiente -->
+                      <!-- ADMIN: siempre puede editar -->
                       <a class="btn btn-sm btn-outline-primary" href="{% url 'folio_editar' f.id %}">Editar</a>
                       {% if f.estatus == 'PENDIENTE' %}
                         <button
@@ -171,4 +182,3 @@
     });
   </script>
 {% endblock %}
-

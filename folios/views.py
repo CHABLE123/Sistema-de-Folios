@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
@@ -10,6 +10,8 @@ from django.db.models import Q, ProtectedError
 from django.views.decorators.http import require_POST, require_http_methods
 from django.db import transaction
 from django.utils import timezone
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from io import BytesIO
 import pandas as pd
 
@@ -386,6 +388,8 @@ def folios_consulta(request):
     estatus = request.GET.get('estatus', '')
     tema_id = request.GET.get('tema', '')
     q = request.GET.get('q', '').strip()
+    desde = request.GET.get('desde')  # 'YYYY-MM-DD' o ''
+    hasta = request.GET.get('hasta')  # 'YYYY-MM-DD' o ''
 
     # Visibilidad por rol
     if request.user.perfil in ['ADMIN', 'SUBADMIN']:
@@ -405,6 +409,15 @@ def folios_consulta(request):
             models.Q(dependencia__icontains=q) |
             models.Q(motivo__icontains=q)
         )
+    
+    if desde:
+        qs = qs.filter(fecha_registro__date__gte=desde)
+    if hasta:
+        qs = qs.filter(fecha_registro__date__lte=hasta)
+
+    # >>> agregado para evitar NameError <<<
+    context = {}
+    context.update({'f_desde': desde or '', 'f_hasta': hasta or ''})
 
     temas = Tema.objects.all().order_by('nombre')
     return render(request, 'folios/folios_consulta.html', {
@@ -416,12 +429,15 @@ def folios_consulta(request):
     })
 
 
+
 @login_required
 def folios_exportar_excel(request):
     # Los mismos filtros que en la vista de consulta
     estatus = request.GET.get('estatus', '')
     tema_id = request.GET.get('tema', '')
     q = request.GET.get('q', '').strip()
+    desde = request.GET.get('desde')  # 'YYYY-MM-DD' o ''
+    hasta = request.GET.get('hasta')  # 'YYYY-MM-DD' o ''
 
     if request.user.perfil in ['ADMIN', 'SUBADMIN']:
         qs = Folio.objects.select_related('tema', 'usuario').all()
@@ -673,3 +689,77 @@ def folio_editar(request, pk):
         },
         'es_admin': _es_gestor(request.user),
     })
+
+@login_required
+def mi_perfil(request):
+    """Ver/actualizar datos del usuario logueado (nombre, apellidos, email)."""
+    user: Usuario = request.user
+
+    if request.method == 'POST':
+        nombre = (request.POST.get('nombre') or '').strip()
+        ap_pat = (request.POST.get('apellido_paterno') or '').strip()
+        ap_mat = (request.POST.get('apellido_materno') or '').strip()
+        email = (request.POST.get('email') or '').strip()
+
+        errores = []
+        if not nombre:
+            errores.append('El nombre es obligatorio.')
+        if not ap_pat:
+            errores.append('El apellido paterno es obligatorio.')
+        if not email:
+            errores.append('El correo es obligatorio.')
+
+        # Email único (si ya lo manejas único en BD, esto ayuda a mostrar mensaje amable)
+        if email and Usuario.objects.exclude(pk=user.pk).filter(email__iexact=email).exists():
+            errores.append('Ya existe otro usuario con ese correo.')
+
+        if errores:
+            for e in errores:
+                messages.error(request, e)
+        else:
+            user.nombre = nombre
+            user.apellido_paterno = ap_pat
+            user.apellido_materno = ap_mat or None
+            user.email = email
+            user.save(update_fields=['nombre', 'apellido_paterno', 'apellido_materno', 'email'])
+            messages.success(request, 'Datos actualizados correctamente.')
+
+    # GET o POST con errores → render con datos actuales
+    return render(request, 'folios/mi_perfil.html', {
+        'u': request.user
+    })
+
+
+@login_required
+@require_POST
+def cambiar_password(request):
+    """Cambiar contraseña del usuario actual (valida contraseña actual y políticas)."""
+    user: Usuario = request.user
+    actual = request.POST.get('password_actual') or ''
+    nueva = request.POST.get('password_nueva') or ''
+    confirmar = request.POST.get('password_confirmar') or ''
+
+    if not user.check_password(actual):
+        messages.error(request, 'La contraseña actual es incorrecta.')
+        return redirect('mi_perfil')
+
+    if not nueva or not confirmar:
+        messages.error(request, 'Debes ingresar y confirmar la nueva contraseña.')
+        return redirect('mi_perfil')
+
+    if nueva != confirmar:
+        messages.error(request, 'La nueva contraseña y su confirmación no coinciden.')
+        return redirect('mi_perfil')
+
+    try:
+        validate_password(nueva, user=user)  # aplica validadores de Django
+    except ValidationError as e:
+        for msg in e.messages:
+            messages.error(request, msg)
+        return redirect('mi_perfil')
+
+    user.set_password(nueva)
+    user.save(update_fields=['password'])
+    update_session_auth_hash(request, user)  # mantiene la sesión activa
+    messages.success(request, 'Contraseña actualizada correctamente.')
+    return redirect('mi_perfil')

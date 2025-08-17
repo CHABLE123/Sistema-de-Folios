@@ -34,6 +34,8 @@ urlpatterns = [
 
     # Edición
     path('folios/<int:pk>/editar/', views.folio_editar, name='folio_editar'),
+    path('mi-perfil/', views.mi_perfil, name='mi_perfil'),
+    path('mi-perfil/cambiar-password/', views.cambiar_password, name='cambiar_password'),
 
 
 
