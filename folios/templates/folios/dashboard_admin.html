@@ -1,33 +1,91 @@
 {% extends 'folios/base.html' %}
-
-{% block title %}Dashboard - Administrador{% endblock %}
+{% block title %}Inicio{% endblock %}
+{% block navbar %}{% endblock %}
 
 {% block content %}
-<h3 class="mb-4">Dashboard de Administrador</h3>
-<div class="row g-4">
-  <div class="col-md-4">
-    <div class="card text-white bg-primary shadow rounded-3">
-      <div class="card-body">
-        <h5 class="card-title">Total de folios</h5>
-        <p class="card-text display-6">{{ total_folios }}</p>
+  <div class="banner-sistema mb-4 text-center">
+    <h2 class="mb-0">Sistema de Registro y Control de Folios</h2>
+  </div>
+  <h4 class="mb-4">Bienvenido <strong>{{ request.user.nombre_completo }}</strong></h4>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-4 menu-card">
+
+    <!-- Usuarios -->
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card h-100 text-center p-3">
+        <div class="mt-2">
+          <i class="fa-solid fa-user fa-4x"></i>
+        </div>
+        <div class="card-body">
+          <h4 class="card-title mb-1"><b>Usuarios</b></h4>
+          <small class="text-muted">Alta, consulta y edición de usuarios.</small>
+        </div>
+        <div class="card-footer bg-white d-grid gap-2 d-sm-flex justify-content-sm-center">
+          <a href="{% url 'registrar_usuario' %}" class="btn btn-primary">Registrar</a>
+          <a href="{% url 'usuarios_lista' %}" class="btn btn-primary">Consultar</a>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-md-4">
-    <div class="card text-white bg-warning shadow rounded-3">
-      <div class="card-body">
-        <h5 class="card-title">Pendientes</h5>
-        <p class="card-text display-6">{{ pendientes }}</p>
+
+    <!-- Folio de Despacho -->
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card h-100 text-center p-3">
+        <div class="mt-2">
+          <i class="fa-solid fa-file-export fa-4x"></i>
+        </div>
+        <div class="card-body">
+          <h4 class="card-title mb-1"><b>Folio de Despacho</b></h4>
+          <small class="text-muted">Registro y consulta de folios.</small>
+        </div>
+        <div class="card-footer bg-white d-grid gap-2 d-sm-flex justify-content-sm-center">
+          <a href="{% url 'folio_registro' %}" class="btn btn-primary">Solicitar</a>
+          <a href="{% url 'folios_consulta' %}" class="btn btn-primary">Consultar</a>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-md-4">
-    <div class="card text-white bg-success shadow rounded-3">
-      <div class="card-body">
-        <h5 class="card-title">Concluidos</h5>
-        <p class="card-text display-6">{{ concluidos }}</p>
+
+    <!-- Temas -->
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card h-100 text-center p-3">
+        <div class="mt-2">
+          <i class="fa-solid fa-list-check fa-4x"></i>
+        </div>
+        <div class="card-body">
+          <h4 class="card-title mb-1"><b>Temas</b></h4>
+          <small class="text-muted">Gestión de temas de folios.</small>
+        </div>
+        <div class="card-footer bg-white d-grid gap-2 d-sm-flex justify-content-sm-center">
+          <!-- Usamos temas_lista para ambas acciones -->
+          <a href="{% url 'temas_lista' %}" class="btn btn-primary">Registrar</a>
+          <a href="{% url 'temas_lista' %}" class="btn btn-primary">Consultar</a>
+        </div>
       </div>
     </div>
+
+    <!-- Mi Perfil -->
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card h-100 text-center p-3">
+        <div class="mt-2">
+          <i class="fa-solid fa-key fa-4x"></i>
+        </div>
+        <div class="card-body">
+          <h4 class="card-title mb-1"><b>Mi Perfil</b></h4>
+          <small class="text-muted">Actualiza tus datos y contraseña.</small>
+        </div>
+        <div class="card-footer bg-white d-grid gap-2 d-sm-flex justify-content-sm-center">
+          <a href="{% url 'mi_perfil' %}" class="btn btn-primary">Seleccionar</a>
+        </div>
+      </div>
+    </div>
+
   </div>
-</div>
 {% endblock %}

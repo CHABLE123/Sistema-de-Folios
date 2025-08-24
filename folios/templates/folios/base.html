@@ -1,15 +1,94 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>{% block title %}Sistema de Folios{% endblock %}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome (íconos) -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+
   {% block head %}{% endblock %}
+  <style>
+    /* estilos suaves para cards */
+    .menu-card .fa-4x { color:#0d6efd; }
+    .menu-card .card { box-shadow: 0 6px 18px rgba(0,0,0,.08); border:none; }
+    .menu-card .card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.12); transition: .2s; }
+    .banner-sistema {
+      background: linear-gradient(135deg, #0d6efd, #003f88);
+      color: white;
+      padding: 2rem;
+      border-radius: 0.75rem;
+      box-shadow: 0px 4px 12px rgba(0,0,0,0.2);
+    }
+    /* Contenedor general de cards de menú */
+  .menu-card .card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+    will-change: transform, box-shadow;
+    background: #ffffff;
+  }
+
+  /* Elevación y sutil zoom al pasar el mouse */
+  .menu-card .card:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 14px 28px rgba(0,0,0,0.14);
+  }
+
+  /* Ícono grande con transición */
+  .menu-card .card i.fa-4x {
+    color: #0d6efd; /* azul Bootstrap */
+    transition: transform .18s ease, filter .18s ease, color .18s ease;
+  }
+
+  /* Sutil “glow” y micro-zoom en el ícono al hover */
+  .menu-card .card:hover i.fa-4x {
+    transform: scale(1.06);
+    filter: drop-shadow(0 4px 10px rgba(13,110,253,.35));
+    color: #0b5ed7; /* tono más fuerte */
+  }
+
+  /* Ajuste visual de los footers para que parezcan integrados */
+  .menu-card .card-footer {
+    background: transparent;
+    border-top: 0;
+    padding-top: 0.25rem;
+    padding-bottom: 1rem;
+  }
+
+  /* Botones con leve sombra y feedback al hover/focus */
+  .menu-card .btn.btn-primary {
+    box-shadow: 0 6px 12px rgba(13,110,253,.18);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .menu-card .btn.btn-primary:hover,
+  .menu-card .btn.btn-primary:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 16px rgba(13,110,253,.25);
+  }
+
+  /* Respeta usuarios con reducción de movimiento */
+  @media (prefers-reduced-motion: reduce) {
+    .menu-card .card,
+    .menu-card .card i.fa-4x,
+    .menu-card .btn.btn-primary {
+      transition: none;
+    }
+    .menu-card .card:hover { transform: none; }
+    .menu-card .card:hover i.fa-4x { transform: none; }
+    .menu-card .btn.btn-primary:hover { transform: none; }
+  }
+  </style>
 </head>
 <body class="bg-light">
 
+  {# Mostrar navbar solo si show_nav no está en False #}
+{% block navbar %}
   {% include 'folios/partials/navbar.html' %}
+{% endblock %}
 
   <div class="container py-4">
     {% block content %}{% endblock %}
@@ -19,4 +98,5 @@
   {% block scripts %}{% endblock %}
 </body>
 </html>
+
 
